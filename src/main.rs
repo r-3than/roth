@@ -17,7 +17,10 @@ use ratatui::{
 
 fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();
-    let app_result = App::default().run(&mut terminal);
+    let mut appThing = App::default();
+    appThing.moves = appThing.get_moves() ;
+    let app_result = appThing.run(&mut terminal);
+    
     ratatui::restore();
     app_result
 }
@@ -27,14 +30,16 @@ impl Default for App {
     fn default() -> Self {
         let mut board = [0; 64]; // Initialize all elements to 0
         board[27] = 1;
-        board[28] = 2;
+        board[28] = -1;
         board[36] = 1;
-        board[35] = 2;
+        board[35] = -1;
+        
         Self {
             counter: 0,
             player:1,
             exit: false,
-            board, // Manually initialize the array
+            board,
+            moves: [].to_vec(), // Manually initialize the array
             
         }
         
@@ -43,10 +48,11 @@ impl Default for App {
 
 #[derive(Debug)]
 pub struct App {
-    counter: u8,
-    player: u8,
+    counter: i8,
+    player: i8,
     exit: bool,
-    board: [u8; 64],
+    board: [i8; 64],
+    moves: Vec<usize>
     
 
 }
@@ -83,30 +89,51 @@ impl App {
 
                 for i in 0..self.board.len() {
                         let ply = self.board[i];
-                        let color ;
                         match ply{
-                            2 => color = Color::White,
-                            1 => color = Color::Black,
-                            _ => color = Color::Green,
+                            -1 => ctx.draw(&Circle {
+                                x: ((i/8) as f64)*10.0 +5.0,
+                                y: ((i%8) as f64)*10.0+5.0,
+                                radius: f64::from(3.1),
+                                color: Color::White,
+                            }),
+                            
+                            1 => ctx.draw(&Circle {
+                                x: ((i/8) as f64)*10.0 +5.0,
+                                y: ((i%8) as f64)*10.0+5.0,
+                                radius: f64::from(3.1),
+                                color: Color::Black,
+                            }),
+                            
+                            _ => (),
 
                         }
                     
-                        ctx.draw(&Circle {
-                            x: ((i/8) as f64)*10.0 +5.0,
-                            y: ((i%8) as f64)*10.0+5.0,
-                            radius: f64::from(3.1),
-                            color: color,
-                        });
-                        
-                    
-                    
                 }
+
+                for i in &self.moves {
+                    match self.player{
+                        1=>
+                    ctx.draw(&Circle {
+                        x: ((i/8) as f64)*10.0 +5.0,
+                        y: ((i%8) as f64)*10.0+5.0,
+                        radius: f64::from(0.55),
+                        color: Color::Black,
+                    }),
+                    -1 => ctx.draw(&Circle {
+                        x: ((i/8) as f64)*10.0 +5.0,
+                        y: ((i%8) as f64)*10.0+5.0,
+                        radius: f64::from(0.55),
+                        color: Color::White,
+                    }),
+                    _ => ()
+                }
+            }
 
                 ctx.draw(&Circle {
                     x: ((self.counter/8) as f64)*10.0 + 5.0,
                     y: ((self.counter%8) as f64)*10.0 + 5.0,
                     radius: f64::from(0.75),
-                    color: Color::White,
+                    color: Color::LightYellow,
                 });
 
                 for i in 0..=8 {
@@ -121,8 +148,6 @@ impl App {
                     }
                     
                 }
-
-                
             }   
               
             )
@@ -154,14 +179,63 @@ impl App {
         }
     }
 
+    fn get_moves(&mut self) -> Vec<usize>{
+        let vects = [(-8,8),(-1,1),(-7,7),(-9,9)];
+        let  mut valid_moves: Vec<usize> = [].to_vec();
+        for pos in 0..self.board.len(){
+            if self.board[pos] == self.player{
+            for v in vects{
+                let mut is_valid = false;
+                let mut current = pos as i32;
+                loop {
+                    if (current + v.0) < 0{
+                        is_valid = false;
+                        break;
+                    }
+                    if self.board[pos] == -self.board[(current + v.0) as usize]{
+                        is_valid = true
+                    }
+                    if is_valid && self.board[(current + v.0) as usize] == 0{
+                        valid_moves.push((current + v.0) as usize);
+                        break
+                    }
+                    current = current+v.0;
+                }
+                current = pos as i32;
+                is_valid = false;
+                loop {
+                    if (current + v.1) > 63{
+                        is_valid = false;
+                        break;
+                    }
+                    if self.board[pos] == -self.board[(current + v.1) as usize]{
+                        is_valid = true
+                    }
+                    if is_valid && self.board[(current + v.1) as usize] == 0{
+                        valid_moves.push((current + v.1) as usize);
+                        break
+                    }
+                    current = current+v.1;
+                }
+            }
+        }
+        
+
+        }
+        //println!("{:?}",valid_moves);
+        valid_moves
+
+    }
+
     fn play(&mut self){
-        //self.circles.push((self.counter,self.player));
-        if self.player == 1{
-            self.player =2
+        if self.moves.contains(&(self.counter as usize)){
+            self.board[self.counter as usize] = self.player;
+            self.player = -self.player;
+            self.moves = self.get_moves();
         }
-        else{
-            self.player =1
-        }
+        
+        
+        
 
 
     }
