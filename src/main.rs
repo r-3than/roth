@@ -1,17 +1,9 @@
-use std::{
-    io::{self, stdout},
-    time::{Duration, Instant},
-};
+use std::io::{self};
 
-use color_eyre::{owo_colors::OwoColorize, Result};
-use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture, KeyEvent, KeyEventKind},
-    ExecutableCommand,
-};
-use itertools::Itertools;
+use crossterm::event::{ KeyEvent, KeyEventKind};
 use ratatui::{
-    buffer::Buffer, crossterm::event::{self, Event, KeyCode, MouseEventKind}, layout::{Constraint, Layout, Position, Rect}, style::{Color, Stylize}, symbols::{border, Marker}, text::{Line, Text}, widgets::{
-        canvas::{Canvas, Circle, Map, MapResolution, Points, Rectangle}, Block, Paragraph, Widget
+    buffer::Buffer, crossterm::event::{self, Event, KeyCode}, layout::{Constraint, Layout, Rect}, style::{Color, Stylize}, symbols::{border}, text::{Line, Text}, widgets::{
+        canvas::{Canvas, Circle,  Rectangle}, Block, Paragraph, Widget
     }, DefaultTerminal, Frame
 };
 
@@ -39,7 +31,10 @@ impl Default for App {
             player:1,
             exit: false,
             board,
-            moves: [].to_vec(), // Manually initialize the array
+            scroll: 0,
+            moves: [].to_vec(),
+            moves_played: [].to_vec(), 
+            current_score: (2,2),// Manually initialize the array
             
         }
         
@@ -52,7 +47,10 @@ pub struct App {
     player: i8,
     exit: bool,
     board: [[i8; 8]; 8],
-    moves: Vec<(usize,usize)>
+    moves: Vec<(usize,usize)>,
+    moves_played: Vec<String>,
+    current_score: (i8,i8),
+    scroll: u16,
     
 
 }
@@ -135,7 +133,7 @@ impl App {
                     x: ((self.counter[0]) as f64)*10.0 + 5.0,
                     y: ((self.counter[1]) as f64)*10.0 + 5.0,
                     radius: f64::from(0.75),
-                    color: Color::LightYellow,
+                    color: Color::Rgb((244), (214), (255)),
                 });
 
                 for i in 0..=8 {
@@ -177,6 +175,8 @@ impl App {
             KeyCode::Up => self.move_up(),
             KeyCode::Down => self.move_down(),
             KeyCode::Enter => self.play(),
+            KeyCode::Char('w') => self.scroll_up(),
+            KeyCode::Char('s') => self.scroll_down(),
             _ => {}
         }
     }
@@ -224,6 +224,11 @@ impl App {
     fn flip_chips(&mut self,pos:(usize,usize)){
         let vects: [(i8, i8); 8] = [(0,1),(1,0),(0,-1),(-1,0),(-1,1),(1,-1),(1,1),(-1,-1)];
         let mut to_flip: Vec<(usize,usize)> = [].to_vec();
+        match self.player{
+            -1=> self.current_score = (self.current_score.0+1,self.current_score.1),
+            1=>self.current_score = (self.current_score.0+0,self.current_score.1+1),
+            _ => ()
+        }
         for v in vects{
             let mut current = (pos.0 as i8,pos.1 as i8);
             to_flip = [].to_vec();
@@ -238,9 +243,18 @@ impl App {
                     to_flip.push(((current.0 + v.0) as usize,(current.1 + v.1) as usize))
                 }
                 if self.board[(current.0 + v.0) as usize][(current.1 + v.1) as usize] == self.board[pos.0 as usize][pos.1 as usize]{
+                    match self.player{
+                        -1=> self.current_score = (self.current_score.0+to_flip.len() as i8,self.current_score.1-to_flip.len() as i8),
+                        1=>self.current_score = (self.current_score.0-to_flip.len() as i8,self.current_score.1+to_flip.len() as i8),
+                        _ => ()
+                    }
                     for i in to_flip{
                         self.board[i.0][i.1] = -self.board[i.0][i.1];
                     }
+
+                    
+
+
                     break
                 }
                 current = (current.0+v.0,current.1+v.1);
@@ -255,11 +269,19 @@ impl App {
         //println!("{:?}",self.moves);
         let current_move = (self.counter[0] as usize, self.counter[1] as usize);
         if self.moves.contains(&(current_move)){
-
+            let playername;
+            match self.player{
+                -1 =>  playername = "White",
+                1 => playername = "Black",
+                _ => playername = "Unknown",
+            }
+            let snapshot = self.current_score;
             self.board[current_move.0][current_move.1] = self.player;
             self.flip_chips(current_move);
             self.player = -self.player;
             self.moves = self.get_moves();
+            let snapshot2 = (self.current_score.0 - snapshot.0,self.current_score.1 - snapshot.1);
+            self.moves_played.push(format!("{} - played at x={} y= {} - Points W:{} || B:{} \n", playername,current_move.0,current_move.1,snapshot2.0,snapshot2.1));
             
         }
         
@@ -308,16 +330,27 @@ impl App {
             self.counter[0] = 7;
         }
     }
+
+    fn scroll_up(&mut self) {
+        if self.scroll != 0{
+            self.scroll = (self.scroll - 1) % (self.moves_played.len() as u16 +1);
+        }
+    }
+    fn scroll_down(&mut self) {
+        self.scroll = (self.scroll + 1) % (self.moves_played.len() as u16 +1);
+    }    
 }
 
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Line::from(" Counter App Tutorial ".bold());
+        let title = Line::from(" Welcome to Roth! ".bold());
         let instructions = Line::from(vec![
-            " Decrement ".into(),
-            "<Left>".blue().bold(),
-            " Increment ".into(),
-            "<Right>".blue().bold(),
+            " Move ".into(),
+            "< ← ↑ ↓ → >".blue().bold(),
+            " Play ".into(),
+            "<Enter>".blue().bold(),
+            " Scroll ".into(),
+            "<W/S>".blue().bold(),
             " Quit ".into(),
             "<Q> ".blue().bold(),
         ]);
@@ -326,15 +359,24 @@ impl Widget for &App {
             .title_bottom(instructions.centered())
             .border_set(border::THICK);
 
-        let counter_text = Text::from(vec![Line::from(vec![
-            "Value: ".into(),
+        let mut display_vect = vec![Line::from(vec![
+            "Current position: x=".into(),
             self.counter[0].to_string().yellow(),
+            " - y=".into(),
             self.counter[1].to_string().yellow(),
-        ])]);
+        ]),
+        Line::raw(format!("White - {} ||  Black - {}",self.current_score.0,self.current_score.1))
+        
+        ];
+        for i in &self.moves_played{
+            display_vect.push(Line::from(i as &str));
+        }
+        let counter_text = Text::from(display_vect);
 
         Paragraph::new(counter_text)
             .centered()
             .block(block)
+            .scroll((self.scroll, 0))
             .render(area, buf);
     }
 }
