@@ -28,14 +28,14 @@ fn main() -> io::Result<()> {
 
 impl Default for App {
     fn default() -> Self {
-        let mut board = [0; 64]; // Initialize all elements to 0
-        board[27] = 1;
-        board[28] = -1;
-        board[36] = 1;
-        board[35] = -1;
+        let mut board = [[0; 8]; 8]; // Initialize all elements to 0
+        board[3][3] = 1;
+        board[3][4] = -1;
+        board[4][3] = -1;
+        board[4][4] = 1;
         
         Self {
-            counter: 0,
+            counter: [0,0],
             player:1,
             exit: false,
             board,
@@ -48,11 +48,11 @@ impl Default for App {
 
 #[derive(Debug)]
 pub struct App {
-    counter: i8,
+    counter: [i8; 2],
     player: i8,
     exit: bool,
-    board: [i8; 64],
-    moves: Vec<usize>
+    board: [[i8; 8]; 8],
+    moves: Vec<(usize,usize)>
     
 
 }
@@ -88,18 +88,19 @@ impl App {
                 
 
                 for i in 0..self.board.len() {
-                        let ply = self.board[i];
+                    for j in 0..self.board.len() {
+                        let ply = self.board[i][j];
                         match ply{
                             -1 => ctx.draw(&Circle {
-                                x: ((i/8) as f64)*10.0 +5.0,
-                                y: ((i%8) as f64)*10.0+5.0,
+                                x: (i as f64)*10.0 +5.0,
+                                y: (j as f64)*10.0+5.0,
                                 radius: f64::from(3.1),
                                 color: Color::White,
                             }),
                             
                             1 => ctx.draw(&Circle {
-                                x: ((i/8) as f64)*10.0 +5.0,
-                                y: ((i%8) as f64)*10.0+5.0,
+                                x: (i as f64)*10.0 +5.0,
+                                y: (j as f64)*10.0+5.0,
                                 radius: f64::from(3.1),
                                 color: Color::Black,
                             }),
@@ -107,6 +108,7 @@ impl App {
                             _ => (),
 
                         }
+                    }
                     
                 }
 
@@ -114,14 +116,14 @@ impl App {
                     match self.player{
                         1=>
                     ctx.draw(&Circle {
-                        x: ((i/8) as f64)*10.0 +5.0,
-                        y: ((i%8) as f64)*10.0+5.0,
+                        x: (i.0 as f64)*10.0 +5.0,
+                        y: (i.1 as f64)*10.0+5.0,
                         radius: f64::from(0.55),
                         color: Color::Black,
                     }),
                     -1 => ctx.draw(&Circle {
-                        x: ((i/8) as f64)*10.0 +5.0,
-                        y: ((i%8) as f64)*10.0+5.0,
+                        x: (i.0 as f64)*10.0 +5.0,
+                        y: (i.1 as f64)*10.0+5.0,
                         radius: f64::from(0.55),
                         color: Color::White,
                     }),
@@ -130,8 +132,8 @@ impl App {
             }
 
                 ctx.draw(&Circle {
-                    x: ((self.counter/8) as f64)*10.0 + 5.0,
-                    y: ((self.counter%8) as f64)*10.0 + 5.0,
+                    x: ((self.counter[0]) as f64)*10.0 + 5.0,
+                    y: ((self.counter[1]) as f64)*10.0 + 5.0,
                     radius: f64::from(0.75),
                     color: Color::LightYellow,
                 });
@@ -179,43 +181,35 @@ impl App {
         }
     }
 
-    fn get_moves(&mut self) -> Vec<usize>{
-        let vects = [(-8,8),(-1,1),(-7,7),(-9,9)];
-        let  mut valid_moves: Vec<usize> = [].to_vec();
-        for pos in 0..self.board.len(){
-            if self.board[pos] == self.player{
-            for v in vects{
-                let mut is_valid = false;
-                let mut current = pos as i32;
-                loop {
-                    if (current + v.0) < 0{
-                        is_valid = false;
-                        break;
+    fn get_moves(&mut self) -> Vec<(usize,usize)>{
+        let vects: [(i8, i8); 8] = [(0,1),(1,0),(0,-1),(-1,0),(-1,1),(1,-1),(1,1),(-1,-1)];
+        let  mut valid_moves: Vec<(usize,usize)> = [].to_vec();
+        for x in 0..self.board.len(){
+            for y in 0..self.board.len(){
+                if self.board[x][y] == self.player{
+                for v in vects{
+                    let mut is_valid = false;
+                    let mut current = (x as i8,y as i8);
+                    loop {
+                        if (current.0 + v.0) < 0 || (current.1 + v.1) < 0 || (current.0 + v.0) > 7 || (current.1 + v.1) > 7 {
+                            is_valid = false;
+                            break;
+                        }
+                        if self.board[(current.0 + v.0) as usize][(current.1 + v.1) as usize] == self.player{
+                            break;
+                        }
+                        if self.board[x][y] == -self.board[(current.0 + v.0) as usize][(current.1 + v.1) as usize]{
+                            is_valid = true
+                        }
+                        if is_valid && self.board[(current.0 + v.0) as usize][(current.1 + v.1) as usize]  == 0{
+                            valid_moves.push(((current.0 + v.0) as usize,(current.1 + v.1) as usize));
+                            break
+                        }
+                        if self.board[(current.0 + v.0) as usize][(current.1 + v.1) as usize]  == 0{
+                            break;
+                        }
+                        current = (current.0+v.0,current.1+v.1);
                     }
-                    if self.board[pos] == -self.board[(current + v.0) as usize]{
-                        is_valid = true
-                    }
-                    if is_valid && self.board[(current + v.0) as usize] == 0{
-                        valid_moves.push((current + v.0) as usize);
-                        break
-                    }
-                    current = current+v.0;
-                }
-                current = pos as i32;
-                is_valid = false;
-                loop {
-                    if (current + v.1) > 63{
-                        is_valid = false;
-                        break;
-                    }
-                    if self.board[pos] == -self.board[(current + v.1) as usize]{
-                        is_valid = true
-                    }
-                    if is_valid && self.board[(current + v.1) as usize] == 0{
-                        valid_moves.push((current + v.1) as usize);
-                        break
-                    }
-                    current = current+v.1;
                 }
             }
         }
@@ -227,11 +221,46 @@ impl App {
 
     }
 
+    fn flip_chips(&mut self,pos:(usize,usize)){
+        let vects: [(i8, i8); 8] = [(0,1),(1,0),(0,-1),(-1,0),(-1,1),(1,-1),(1,1),(-1,-1)];
+        let mut to_flip: Vec<(usize,usize)> = [].to_vec();
+        for v in vects{
+            let mut current = (pos.0 as i8,pos.1 as i8);
+            to_flip = [].to_vec();
+            loop {
+                if (current.0 + v.0) < 0 || (current.1 + v.1) < 0 || (current.0 + v.0) > 7 || (current.1 + v.1) > 7 {
+                    break;
+                }
+                if self.board[(current.0 + v.0) as usize][(current.1 + v.1) as usize] == 0{
+                    break;
+                }
+                if self.board[pos.0 as usize][pos.1 as usize] == -self.board[(current.0 + v.0) as usize][(current.1 + v.1) as usize]{
+                    to_flip.push(((current.0 + v.0) as usize,(current.1 + v.1) as usize))
+                }
+                if self.board[(current.0 + v.0) as usize][(current.1 + v.1) as usize] == self.board[pos.0 as usize][pos.1 as usize]{
+                    for i in to_flip{
+                        self.board[i.0][i.1] = -self.board[i.0][i.1];
+                    }
+                    break
+                }
+                current = (current.0+v.0,current.1+v.1);
+            }
+            
+            
+        }
+            
+    }
+
     fn play(&mut self){
-        if self.moves.contains(&(self.counter as usize)){
-            self.board[self.counter as usize] = self.player;
+        //println!("{:?}",self.moves);
+        let current_move = (self.counter[0] as usize, self.counter[1] as usize);
+        if self.moves.contains(&(current_move)){
+
+            self.board[current_move.0][current_move.1] = self.player;
+            self.flip_chips(current_move);
             self.player = -self.player;
             self.moves = self.get_moves();
+            
         }
         
         
@@ -245,39 +274,39 @@ impl App {
     }
 
     fn move_right(&mut self) {
-        if self.counter < 48 {
-        self.counter += 8;
+        if self.counter[0] < 7{
+            self.counter[0] += 1
         }
         else{
-            self.counter = self.counter%8;
+            self.counter[0] = 0;
         }
 
     }
 
     fn move_up(&mut self) {
-        if self.counter < 63{
-            self.counter += 1;
+        if self.counter[1] < 7{
+            self.counter[1] += 1
         }
         else{
-            self.counter -= 7;
+            self.counter[1] = 0;
         }
     }
 
     fn move_down(&mut self) {
-        if self.counter > 0 {
-        self.counter -= 1;
+        if self.counter[1] > 0{
+            self.counter[1] += -1
         }
         else{
-            self.counter=63;
+            self.counter[1] = 7;
         }
     }
     fn move_left(&mut self) {
-        if self.counter > 7 {
-            self.counter -= 8;
-            }
-            else{
-                self.counter=64-(8-self.counter);
-            }
+        if self.counter[0] > 0{
+            self.counter[0] += -1
+        }
+        else{
+            self.counter[0] = 7;
+        }
     }
 }
 
@@ -299,7 +328,8 @@ impl Widget for &App {
 
         let counter_text = Text::from(vec![Line::from(vec![
             "Value: ".into(),
-            self.counter.to_string().yellow(),
+            self.counter[0].to_string().yellow(),
+            self.counter[1].to_string().yellow(),
         ])]);
 
         Paragraph::new(counter_text)
