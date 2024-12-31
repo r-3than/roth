@@ -280,6 +280,15 @@ impl App {
             self.flip_chips(current_move);
             self.player = -self.player;
             self.moves = self.get_moves();
+            if self.moves.len() == 0 {
+                self.moves_played.push(format!("{} Go Again, Other player cannot move.\n", playername));
+                self.player = -self.player;
+                self.moves = self.get_moves();
+                if self.moves.len() == 0 {
+                    self.moves_played.push(format!("No one can move! End of Game!\n"));
+                }
+
+            }
             let snapshot2 = (self.current_score.0 - snapshot.0,self.current_score.1 - snapshot.1);
             self.moves_played.push(format!("{} - played at x={} y= {} - Points W:{} || B:{} \n", playername,current_move.0,current_move.1,snapshot2.0,snapshot2.1));
             
